@@ -1,15 +1,15 @@
 using System;
 using Root.DTOs;
-using Root.Utils;
-using Root.Interfaces;
+using Root.Source;
+using Root.Core.Interfaces;
 
 namespace Root.Core;
 
 public class Tenant : ITenant {
 	private readonly MyAuthRequest _auth;
 
-	public Tenant(string name, string clientId, string secret, RequestHandle rh) {
-		_auth = new MyAuthRequest(name, clientId, secret, rh);
+	public Tenant(string name, string clientId, string secret, RequestSource rs) {
+		_auth = new MyAuthRequest(name, clientId, secret, rs);
 	}
 
 	public Task<Resource?> GetResourcesAsync() {

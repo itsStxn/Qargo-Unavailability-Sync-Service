@@ -1,43 +1,48 @@
 using Polly;
 using System;
-using Root.Utils;
+using Root.Source;
 using Polly.Retry;
-using Root.Interfaces;
 using System.Text.Json;
+using Root.Core.Interfaces;
 using System.Net.Http.Json;
 
 namespace Root.Core;
 
 public class MyRequest : IMyRequest {
-	protected readonly RequestHandle _rh;
+	protected readonly RequestSource _rs;
 	private readonly AsyncRetryPolicy _retryPolicy;
 
-	public MyRequest(RequestHandle rh) {
-		_rh = rh;
+	public MyRequest(RequestSource rs) {
+		_rs = rs;
 		_retryPolicy = Policy
 			.Handle<HttpRequestException>()
 			.WaitAndRetryAsync(
-				retryCount: _rh.MaxAttempts,
+				retryCount: _rs.MaxAttempts,
 				onRetryAsync: async (ex, delay) => 
 					await OnRetryAsync(ex, delay),
-				sleepDurationProvider: attempt => 
-					TimeSpan.FromSeconds(Math.Pow(2, attempt))
+				sleepDurationProvider: attempt => {
+					var delayMs = Math.Min(1000, 50 * Math.Pow(2, attempt - 1)); // ? Capped at 1s
+					return TimeSpan.FromMilliseconds(delayMs);
+				}
 			);
 	}
 
 	protected string BuildFullUri(Uri? path) {
-		if (_rh.Client.BaseAddress == null)
+		if (_rs.Client.BaseAddress == null)
 			throw new Exception("The base address of HttpClient is null");
 
 		if (path == null || path.ToString().Trim() == string.Empty)
-			throw new Exception("The URI in HttpRequestMessage is null or empty");
+			throw new Exception("The URI in HttpRequestMessage is empty or null");
 
-		return new Uri(_rh.Client.BaseAddress, path).ToString().Trim();
+		return new Uri(_rs.Client.BaseAddress, path).ToString().Trim();
 	}
 
-	protected virtual Task OnRetryAsync(Exception ex, TimeSpan delay) {
+	protected virtual Task<HttpRequestException> OnRetryAsync(Exception ex, TimeSpan delay) {
+		if (ex is not HttpRequestException httpEx)
+			throw new Exception("Polly nuget package issue: expected HttpRequestException was not caught");
+
 		Console.WriteLine($"SendAsync HTTP error, retrying after {delay.TotalSeconds}s: {ex.Message}");
-		return Task.CompletedTask;
+		return Task.FromResult(httpEx);
 	}
 
 	protected virtual async Task<T?> TrySendAsync<T>(HttpRequestMessage req) {
@@ -46,7 +51,7 @@ public class MyRequest : IMyRequest {
 
 		// ? Get http response
 		try {
-			res = await _rh.Client.SendAsync(req, _rh.CT);
+			res = await _rs.Client.SendAsync(req, _rs.Ct);
 			res.EnsureSuccessStatusCode();
 		}
 		catch (HttpRequestException ex) {
@@ -66,7 +71,7 @@ public class MyRequest : IMyRequest {
 		}
 	}
 
-	public virtual async Task<T?> SendAsync<T>(HttpRequestMessage req) {
+	public async Task<T?> SendAsync<T>(HttpRequestMessage req) {
 		return await _retryPolicy.ExecuteAsync(async () => await TrySendAsync<T>(req));
 	}
 }

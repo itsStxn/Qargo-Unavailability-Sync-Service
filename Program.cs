@@ -1,19 +1,20 @@
 ﻿using System;
 using Root.Core;
-using Root.Utils;
+using Root.Source;
+using Root.Services;
 
 namespace Root;
 
 class Program {
 	static public async Task Main(string[] args) {
-		// ? Get env variables and http handle
-		var (env, handle) = Settings.Init();
+		// ? Get context: env variables, http handle, etc...
+		var ctx = new Context();
 
 		// ? Define tenants
-		var qargo = new Qargo(env, handle);
-		var master = new Master(env, handle);
+		var qargo = new QargoService(ctx);
+		var master = new MasterService(ctx);
 
-		// TODO: Implement access token cache
+		// DONE: Implement access token cache
 		// TODO: Implement a logger with tenant identity feature
 		// TODO: Implement tenant operations
 		// TODO: Implement parallel flow logic

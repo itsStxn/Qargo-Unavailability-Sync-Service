@@ -1,9 +1,10 @@
 using System;
+using Root.Source.Interfaces;
 
-namespace Root.Utils;
+namespace Root.Source;
 
-public class EnvLoader {
-	public EnvLoader() {
+public class EnvSource : IEnvSource {
+	public EnvSource() {
 		DotNetEnv.Env.Load();
 	}
 	

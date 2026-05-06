@@ -1,7 +1,7 @@
 using System;
 using Root.DTOs;
 
-namespace Root.Interfaces;
+namespace Root.Core.Interfaces;
 
 public interface ITenant {
 	public Task<Resource?> GetResourcesAsync();

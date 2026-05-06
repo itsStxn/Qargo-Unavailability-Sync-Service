@@ -7,8 +7,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Folder Include="Cache/" />
     <Folder Include="Constants/" />
     <Folder Include="Utils/" />
+    <Folder Include="Utils/Interfaces/" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
