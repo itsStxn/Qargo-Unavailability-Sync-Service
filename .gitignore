@@ -3,6 +3,8 @@
 ############################
 Cache/
 Logs/
+obj/
+bin/
 
 ############################
 # Operating System files
