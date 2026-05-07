@@ -30,4 +30,8 @@ public class Base {
 	public void Warn(string text) {
 		Logger.Warning(Msg(text));
 	}
+
+	public void Error(string text) {
+		Logger.Error(Msg(text));
+	}
 }

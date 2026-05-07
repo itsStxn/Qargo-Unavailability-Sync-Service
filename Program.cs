@@ -42,7 +42,7 @@ class Program {
 		// DONE: Implement access token cache
 		// DONE: Implement a logger with tenant identity feature
 		// DONE: Implement error handler
-		// TODO: Implement tenant operations
+		// DONE: Implement tenant operations
 		// TODO: Implement parallel flow logic
 		// TODO: Implement inter-environment operations
 	}
