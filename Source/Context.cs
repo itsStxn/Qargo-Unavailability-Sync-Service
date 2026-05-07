@@ -6,7 +6,7 @@ namespace Root.Source;
 
 public class Context : IDisposable {
 	public readonly EnvSource Env;
-	public readonly RequestSource Req;
+	public readonly HttpClient Cli;
 	private readonly CancellationTokenSource _ct;
 	private bool _disposed;
 
@@ -32,17 +32,16 @@ public class Context : IDisposable {
 
 		// ? Define cancellation token
 		_ct = new CancellationTokenSource(TimeSpan.FromSeconds(CT_TIMEOUT));
+		Console.CancelKeyPress += (_, e) => {
+			e.Cancel = true; // ? no immediate kill
+			_ct.Cancel();    // ? graceful shutdown
+		};
 
 		// ? Gather reusable request resource
-		Req = new RequestSource(
-			ct: _ct.Token,
-			maxAttempts: MAX_ATTEMPTS,
-			client: new HttpClient() {
-				BaseAddress = new Uri(BASEURL),
-				Timeout = TimeSpan.FromSeconds(TIMEOUT)
-			}
-		);
-
+		Cli = new HttpClient() {
+			BaseAddress = new Uri(BASEURL),
+			Timeout = TimeSpan.FromSeconds(TIMEOUT)
+		};
 	}
 
 	public void ShutDown() {
@@ -59,7 +58,7 @@ public class Context : IDisposable {
 
 		// ? Release both token and HTTP client
 		_ct.Dispose();
-		Req.Dispose();
+		Cli.Dispose();
 
 		Log.Information("Console app resources released");
 		Log.CloseAndFlush();

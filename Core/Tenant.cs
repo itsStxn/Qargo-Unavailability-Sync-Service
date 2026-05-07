@@ -1,6 +1,5 @@
 using System;
 using Root.DTOs;
-using Root.Source;
 using Root.Errors;
 using Root.Core.Interfaces;
 using System.Net.Http.Json;
@@ -13,8 +12,8 @@ namespace Root.Core;
 public class Tenant : Base, ITenant {
 	private readonly MyAuthRequest _auth;
 
-	public Tenant(string name, string clientId, string secret, RequestSource rs) {
-		_auth = new MyAuthRequest(name, clientId, secret, rs);
+	public Tenant(string name, string clientId, string secret, HttpClient cli) {
+		_auth = new MyAuthRequest(name, clientId, secret, cli);
 		_name = name;
 	}
 
@@ -113,13 +112,14 @@ public class Tenant : Base, ITenant {
 		return res;
 	}
 
-	public async Task<HttpResponseMessage> UpdateUnavailabilitiesAsync(string resourceId, UActions actions) {
+	public async Task<HttpResponseMessage> UpdateUnavailabilitiesAsync(string resourceId, Unavailability unavail, UActions actions) {
 		Echo($"Updating unavailabilities for resource: {resourceId}...");
 		HttpResponseMessage? lastRes = null;
 
 		try {
-			foreach (var unavail in actions.ToCreate.Values) {
-				lastRes = await UpdateUnavailabilityAsync(resourceId, unavail);
+			foreach (var newUnavail in actions.ToCreate.Values) {
+				newUnavail.ExternalId = unavail.ExternalId; // ? Update external id
+				lastRes = await UpdateUnavailabilityAsync(resourceId, unavail.Id, newUnavail);
 			}
 
 			Echo($"Successfully updated unavailabilities for resource: {resourceId}");
@@ -131,8 +131,8 @@ public class Tenant : Base, ITenant {
 		}
 	}
 
-	private async Task<HttpResponseMessage> UpdateUnavailabilityAsync(string resourceId, Unavailability unavail) {
-		string endpoint = $"resources/resource/{resourceId}/unavailability/{unavail.Id}";
+	public async Task<HttpResponseMessage> UpdateUnavailabilityAsync(string resourceId, string unavailId, Unavailability unavail) {
+		string endpoint = $"resources/resource/{resourceId}/unavailability/{unavailId}";
 		var res = await _auth.SendAsync<HttpResponseMessage>(() => 
 			new(HttpMethod.Put, endpoint) {
 				Content = JsonContent.Create(unavail)

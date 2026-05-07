@@ -1,6 +1,5 @@
 using Polly;
 using System;
-using Root.Source;
 using Polly.Retry;
 using Root.Errors;
 using Root.Core.Interfaces;
@@ -10,15 +9,15 @@ using static Root.Constants.Constants;
 namespace Root.Core;
 
 public class MyRequest : Base, IMyRequest {
-	protected readonly RequestSource _rs;
+	protected readonly HttpClient _cli;
 	private readonly AsyncRetryPolicy _retryPolicy;
 
-	public MyRequest(RequestSource rs) {
-		_rs = rs;
+	public MyRequest(HttpClient cli) {
+		_cli = cli;
 		_retryPolicy = Policy
 			.Handle<NetworkException>()
 			.WaitAndRetryAsync(
-				retryCount: _rs.MaxAttempts,
+				retryCount: MAX_ATTEMPTS,
 				sleepDurationProvider: (attempt, ex, ctx) => 
 					Timeout(attempt, ex),
 				onRetryAsync: async (ex, delay, attempt, ctx) => 
@@ -28,7 +27,7 @@ public class MyRequest : Base, IMyRequest {
 
 	protected string BuildFullUri(HttpRequestMessage req) {
 		// ? Validate HttpClient's base address
-		var baseUri = _rs.Client.BaseAddress;
+		var baseUri = _cli.BaseAddress;
 		if (baseUri == null || baseUri.ToString().Trim() == string.Empty)
 			throw new ConfigException(
 				Msg("The base address in HttpClient is empty or null"));
@@ -69,7 +68,7 @@ public class MyRequest : Base, IMyRequest {
 		// ? Get http response
 		try {
 			Echo($"Fetching result at {fullUri()}...");
-			res = await _rs.Client.SendAsync(req, _rs.Ct);
+			res = await _cli.SendAsync(req);
 			res.EnsureSuccessStatusCode();
 		}
 		catch (HttpRequestException ex) {

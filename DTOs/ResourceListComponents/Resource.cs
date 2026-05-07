@@ -6,7 +6,7 @@ namespace Root.DTOs.ResourceListComponents;
 
 public class Resource {
 	[JsonPropertyName("id")]
-	public required string RowId { get; set; }
+	public required string Id { get; set; }
 
 	[JsonPropertyName("name")]
 	public required string Name { get; set; }

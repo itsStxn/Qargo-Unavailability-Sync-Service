@@ -3,7 +3,6 @@ using Root.DTOs;
 using Root.Utils;
 using System.Net;
 using System.Text;
-using Root.Source;
 using Root.Errors;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
@@ -16,7 +15,7 @@ public class MyAuthRequest : MyRequest {
 	private string _accessToken;
 	private readonly AccessTokenUtil _atu;
 
-	public MyAuthRequest(string name, string clientId, string secret, RequestSource rs) : base(rs) {
+	public MyAuthRequest(string name, string clientId, string secret, HttpClient cli) : base(cli) {
 		_atu = new AccessTokenUtil(name);
 		_accessToken = _atu.ReadCache();
 		_clientId = clientId;
