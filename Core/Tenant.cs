@@ -85,6 +85,10 @@ public class Tenant : Base, ITenant {
 	}
 
 	public async Task<HttpResponseMessage> CreateUnavailabilitiesAsync(string resourceId, UActions actions) {
+		// ? Early exit
+		if (actions.ToUpdate.Count == 0)
+			Warn("Creation map is empty, early exit...");
+
 		Echo($"Creating unavailabilities for resource: {resourceId}...");
 		HttpResponseMessage? lastRes = null;
 
@@ -112,14 +116,17 @@ public class Tenant : Base, ITenant {
 		return res;
 	}
 
-	public async Task<HttpResponseMessage> UpdateUnavailabilitiesAsync(string resourceId, Unavailability unavail, UActions actions) {
+	public async Task<HttpResponseMessage> UpdateUnavailabilitiesAsync(string resourceId, UActions actions) {
+		// ? Early exit
+		if (actions.ToUpdate.Count == 0)
+			Warn("Update map is empty, early exit...");
+
 		Echo($"Updating unavailabilities for resource: {resourceId}...");
 		HttpResponseMessage? lastRes = null;
 
 		try {
-			foreach (var newUnavail in actions.ToCreate.Values) {
-				newUnavail.ExternalId = unavail.ExternalId; // ? Update external id
-				lastRes = await UpdateUnavailabilityAsync(resourceId, unavail.Id, newUnavail);
+			foreach (var (unavailId, newUnavail) in actions.ToUpdate) {
+				lastRes = await UpdateUnavailabilityAsync(resourceId, unavailId, newUnavail);
 			}
 
 			Echo($"Successfully updated unavailabilities for resource: {resourceId}");
@@ -131,11 +138,11 @@ public class Tenant : Base, ITenant {
 		}
 	}
 
-	public async Task<HttpResponseMessage> UpdateUnavailabilityAsync(string resourceId, string unavailId, Unavailability unavail) {
+	private async Task<HttpResponseMessage> UpdateUnavailabilityAsync(string resourceId, string unavailId, Unavailability newUnavail) {
 		string endpoint = $"resources/resource/{resourceId}/unavailability/{unavailId}";
 		var res = await _auth.SendAsync<HttpResponseMessage>(() => 
 			new(HttpMethod.Put, endpoint) {
-				Content = JsonContent.Create(unavail)
+				Content = JsonContent.Create(newUnavail)
 		});
 
 		return res;

@@ -16,28 +16,30 @@ public class UActions : IUActions {
 
 	public void Assign(Unavailability unavail) {
 		// ? Validate input
-		string unavailId = unavail.ExternalId 
-			?? throw new ConfigException("Input's external id must be not null");
+		string externalId = unavail.ExternalId 
+			?? throw new ConfigException("Input unavailability external id must be not null");
 		
 		// ? Validate uniqueness
+		string unavailId = unavail.Id; 
 		if (ToUpdate.ContainsKey(unavailId))
-			throw new ConfigException("Unavailability id must be unique");
+			throw new ConfigException("Input unavailability id must be unique");
 
 		// ? Nothing to change 
-		if (!ToCreate.ContainsKey(unavailId)) return;
+		if (!ToCreate.ContainsKey(externalId)) return;
 
 		// ? If the existing unavailability differs 
 		// ? from the incoming one, mark it for update
 		var a = unavail;
-		var b = ToCreate[unavailId];
-		ToCreate.Remove(unavailId); // ? Move unavailability
+		var b = ToCreate[externalId];
+		ToCreate.Remove(externalId); // ? Move unavailability
 
 		if (a.Reason 	   != b.Reason
 		||  a.Description != b.Description
 		||  a.StartTime   != b.StartTime
 		||  a.EndTime     != b.EndTime) {
-			b.ExternalId = a.ExternalId; // ? Update external id
-			ToUpdate[unavailId] = b;
+			b.ExternalId = a.ExternalId; // ? Ensure they have same external id
+			ToUpdate.Add(unavailId, b); // ? Use unavail id of qargo => 
+												 // ? Update request done in the qargo tenant by that key
 		}
 	}
 }

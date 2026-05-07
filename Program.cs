@@ -1,6 +1,5 @@
 ﻿using System;
 using Serilog;
-using Root.Utils;
 using Root.Source;
 using Root.Errors;
 using Root.Services;
@@ -16,6 +15,10 @@ class Program {
 			// ? Define tenants
 			var qargo = new QargoService(ctx);
 			var master = new MasterService(ctx);
+
+			// ? Define interactor and sync unavailabilities
+			var inter = new InteractService(qargo, master);
+			await inter.SyncUnavailabilities();
 		}
 		catch (NetworkException ex) {
 			Log.Fatal(ex, "Network failure {StatusCode} after all retry attempts — {Message}",
@@ -38,12 +41,5 @@ class Program {
 		finally {
 			ctx.ShutDown();
 		}
-
-		// DONE: Implement access token cache
-		// DONE: Implement a logger with tenant identity feature
-		// DONE: Implement error handler
-		// DONE: Implement tenant operations
-		// TODO: Implement parallel flow logic
-		// TODO: Implement inter-environment operations
 	}
 }

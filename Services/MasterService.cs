@@ -6,23 +6,25 @@ using Root.Services.Interfaces;
 
 namespace Root.Services;
 
-public class MasterService : Tenant, IMasterService {
+public class MasterService : Tenant, IResourseMap {
+	public readonly Dictionary<string, UActions> ResourceMap;
+
 	public MasterService(Context ctx) : base(
 		name:     "Master",
 		cli:		 ctx.Cli,
 		secret:   ctx.Env.Load("MASTER_SECRET"),
 		clientId: ctx.Env.Load("MASTER_CLIENT_ID")
-	) { }
+	) {
+		ResourceMap = [];
+	}
 
-	public async Task<Dictionary<string, UActions>> MapResources() {
-		var resourceMap = new Dictionary<string, UActions>();
-		
+	public async Task MapResources() {
 		// ? Get every resource's unavailability
 		var resources = await GetResourcesAsync();
 
 		foreach (var r in resources) {
 			// ? Validate uniqueness
-			if (resourceMap.ContainsKey(r.Id))
+			if (ResourceMap.ContainsKey(r.Id))
 				throw new ConfigException(Msg("resource IDs must be unique"));
 			
 			// ? Assume unavailabilities need to be created, not updated
@@ -37,10 +39,8 @@ public class MasterService : Tenant, IMasterService {
 				}
 
 				// ? Map resource id to actions
-				resourceMap[r.Id] = actions;
+				ResourceMap[r.Id] = actions;
 			}
 		}
-
-		return resourceMap;
 	}
 }
