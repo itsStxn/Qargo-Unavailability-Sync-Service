@@ -11,4 +11,9 @@ public class AppException : Exception, IAppException {
 		if (ex is T already) return already;
 		return (T)Activator.CreateInstance(typeof(T), ex.Message, ex)!;
 	}
+
+	public static Exception Label<T>(Exception ex, string msg) where T: AppException {
+		if (ex is T) return ex;
+		return new Exception(msg, ex);
+	}
 }

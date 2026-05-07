@@ -1,6 +1,7 @@
 using System;
 using Root.DTOs;
 using Root.Source;
+using Root.Errors;
 using Root.Core.Interfaces;
 
 namespace Root.Core;
@@ -13,9 +14,15 @@ public class Tenant : Base, ITenant {
 		_name = name;
 	}
 
-	public Task<ResourceList> GetResourcesAsync() {
-		// TODO: code...
-		return default;
+	public async Task<ResourceList> GetResourcesAsync() {
+		try {
+			var data = await _auth.SendAsync<ResourceList>(() =>
+				new HttpRequestMessage(HttpMethod.Get, "resources/resource"));
+			return data;
+		}
+		catch (Exception ex) {
+			throw AppException.Label<AppException>(ex, Msg(ex.Message));
+		}
 	}
 	public Task<T> GetUnavailabilitiesAsync<T>(string resourceId) {
 		// TODO: code...

@@ -60,21 +60,14 @@ public class AccessTokenUtil : IAccessTokenUtil {
 		File.WriteAllText(_filePath, json);
 	}
 
-	public static void PrintPretty(string json) {
-		// ? Validate string json
-		if (string.IsNullOrWhiteSpace(json))
-			throw new ConfigException("JSON input is empty");
-
+	public static void PrintPretty<T>(T data) {
 		// ? Json serialization
 		try {
-			using JsonDocument document = JsonDocument.Parse(json);
-
-			string prettyJson = JsonSerializer.Serialize(
-				document.RootElement, JSON_OPTIONS);
-			Console.WriteLine(prettyJson);
+			var json = JsonSerializer.Serialize(data, JSON_OPTIONS);
+			Console.WriteLine(json);
 		}
 		catch (JsonException ex) {
-			throw new ParseException("JSON input is empty", ex);
+			throw new ParseException("JSON is badly formatted", ex);
 		}
 	}
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using Serilog;
+using Root.Utils;
 using Root.Source;
 using Root.Errors;
 using Root.Services;
@@ -15,6 +16,9 @@ class Program {
 			// ? Define tenants
 			var qargo = new QargoService(ctx);
 			var master = new MasterService(ctx);
+
+			var res = await qargo.GetResourcesAsync();
+			AccessTokenUtil.PrintPretty(res);
 		}
 		catch (NetworkException ex) {
 			Log.Fatal(ex, "Network failure {StatusCode} after all retry attempts — {Message}",

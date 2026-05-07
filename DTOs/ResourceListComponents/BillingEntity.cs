@@ -20,5 +20,5 @@ public class BillingEntity {
 	public required string CompanyRegistrationNumber { get; set; }
 
 	[JsonPropertyName("is_default")]
-	public bool IsDefault { get; set; }
+	public bool IsDefault { get; set; } = false;
 }

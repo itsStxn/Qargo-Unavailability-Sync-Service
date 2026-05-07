@@ -5,6 +5,7 @@ using Polly.Retry;
 using Root.Errors;
 using Root.Core.Interfaces;
 using System.Net.Http.Json;
+using static Root.Constants.Constants;
 
 namespace Root.Core;
 
@@ -52,7 +53,7 @@ public class MyRequest : Base, IMyRequest {
 		}
 
 		// ? Manually calculate timeout duration
-		var delayMs = Math.Min(1000, 50 * Math.Pow(2, attempt - 1)); // ? Capped at 1s
+		var delayMs = Math.Min(RETRY_TIMEOUT, 50 * Math.Pow(5, attempt - 1)); // ? Capped at 1s
 		return TimeSpan.FromMilliseconds(delayMs);
 	}
 
