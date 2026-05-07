@@ -9,7 +9,7 @@ public class Constants {
 
 		public const int MAX_ATTEMPTS  = 5; // ? Max http request attempts
 		public const int CT_TIMEOUT 	 = 10; // ? Cancellation token timeout (seconds)
-		public const int TIMEOUT 	 	 = 10; // ? Http request timeout (seconds)
+		public const int TIMEOUT 	 	 = 10; // ? HTTP request timeout (seconds)
 		public const int RETRY_TIMEOUT = 1000; // ? Timeout for next http request (milliseconds)
 		public const int LOGS_TTL 	 	 = 7; // ? How long longs are retained (seconds)
 		
