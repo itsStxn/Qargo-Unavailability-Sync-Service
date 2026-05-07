@@ -12,7 +12,7 @@ class Program {
 		using var ctx = new Context();
 
 		try {
-			// ? Define tenants
+			// ? Define services
 			var qargo = new QargoService(ctx);
 			var master = new MasterService(ctx);
 
