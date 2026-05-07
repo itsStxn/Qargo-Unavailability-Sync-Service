@@ -9,11 +9,19 @@
   <ItemGroup>
     <Folder Include="Cache/" />
     <Folder Include="Constants/" />
+    <Folder Include="Errors/" />
+    <Folder Include="Errors/Interfaces/" />
+    <Folder Include="Logs/" />
     <Folder Include="Utils/" />
     <Folder Include="Utils/Interfaces/" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
     <PackageReference Include="Polly" Version="8.6.6" />
+    <PackageReference Include="Serilog" Version="4.3.1" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 </Project>

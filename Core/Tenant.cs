@@ -5,11 +5,12 @@ using Root.Core.Interfaces;
 
 namespace Root.Core;
 
-public class Tenant : ITenant {
+public class Tenant : Base, ITenant {
 	private readonly MyAuthRequest _auth;
 
 	public Tenant(string name, string clientId, string secret, RequestSource rs) {
 		_auth = new MyAuthRequest(name, clientId, secret, rs);
+		_name = name;
 	}
 
 	public Task<Resource?> GetResourcesAsync() {

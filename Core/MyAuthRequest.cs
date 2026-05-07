@@ -4,6 +4,7 @@ using Root.Utils;
 using System.Net;
 using System.Text;
 using Root.Source;
+using Root.Errors;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
 
@@ -12,7 +13,6 @@ namespace Root.Core;
 public class MyAuthRequest : MyRequest {
 	private readonly string _clientId;
 	private readonly string _secret;
-	private readonly string _name;
 	private string _accessToken;
 	private readonly AccessTokenCache _atc;
 
@@ -24,66 +24,51 @@ public class MyAuthRequest : MyRequest {
 		_name = name;
 	}
 
-	private async Task ReNewAccessTokenAsync() {
-		int attempt = 0;
-		while (attempt < _rs.MaxAttempts) {
+	private async Task RenewAccessTokenAsync() {
+		// ? Generate credentials
+		var cred = Convert.ToBase64String(
+			Encoding.UTF8.GetBytes($"{_clientId}:{_secret}"));
+
+		// ? Get and validate response
+		var data = await SendAsync<AccessTokenResponse>(() => {
 			// ? Build request
 			var req = new HttpRequestMessage(HttpMethod.Post, "auth/token");
-			Console.WriteLine($"(Attempt no {++attempt}) Fetching access token at {BuildFullUri(req.RequestUri)}");
-
-			var cred = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_clientId}:{_secret}"));
 			req.Headers.Authorization = new AuthenticationHeaderValue("Basic", cred);
 			req.Content = JsonContent.Create(new { grant_type = "client_credentials" });
+			return req;
+		});
 
-			// ? Get and validate response
-			var res = await _rs.Client.SendAsync(req, _rs.Ct);
-
-			if (res.StatusCode == HttpStatusCode.TooManyRequests) {
-				var retryAfter = res.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(60);
-				Console.WriteLine($"Rate limited, retrying after {retryAfter.TotalSeconds}s...");
-				await Task.Delay(retryAfter, _rs.Ct);
-				continue; // ? retry
-			}
-
-			res.EnsureSuccessStatusCode();
-
-			// ? Get new access token
-			var data = await res.Content.ReadFromJsonAsync<AccessTokenResponse>(_rs.Ct)
-				?? throw new Exception("Failed to deserialize access token response");
-			_accessToken = data.AccessToken.Trim();
-
-			// ? Validate and cache access token
-			if (_accessToken.Length == 0)
-				throw new Exception("Access token is unexpectedly an empty string");
-			_atc.Create(_accessToken);
-			return;
-		}
+		_accessToken = data.AccessToken.Trim();
+		_atc.Create(_accessToken);
 	}
 
-	protected override async Task<HttpRequestException> OnRetryAsync(Exception ex, TimeSpan delay) {
-		var httpEx = await base.OnRetryAsync(ex, delay);
+	protected override async Task<NetworkException> OnRetryAsync(Exception ex, TimeSpan delay) {
+		var netEx = await base.OnRetryAsync(ex, delay);
 
 		// ? Inject access token if necessary
-		if (httpEx.StatusCode == HttpStatusCode.Unauthorized) {
-			await ReNewAccessTokenAsync();
+		if (netEx.StatusCode == HttpStatusCode.Unauthorized) {
+			await RenewAccessTokenAsync();
 		}
 
-		return httpEx;
+		return netEx;
 	}
 
-	protected override async Task<T?> TrySendAsync<T>(HttpRequestMessage req) where T: default {
-		// ? Force pollying
-		if (_accessToken == string.Empty) {
-			throw new HttpRequestException(
-				"Access token is empty",
-				inner: null,
-				statusCode: HttpStatusCode.Unauthorized
-			);
-		}
+	protected override async Task<T> TrySendAsync<T>(HttpRequestMessage req) where T: default {
+		// ? Skip token injection if request is already using Basic auth
+		if (req.Headers.Authorization?.Scheme != "Basic") {
+			// ? Force pollying
+			if (_accessToken == string.Empty) {
+				throw new NetworkException(
+					inner: null,
+					message: Msg("Access token is empty"),
+					statusCode: HttpStatusCode.Unauthorized
+				);
+			}
 
-		// ? Set access token
-		req.Headers.Authorization = 
-			new AuthenticationHeaderValue("Bearer", _accessToken);
+			// ? Inject access token
+			req.Headers.Authorization = 
+				new AuthenticationHeaderValue("Bearer", _accessToken);
+		}
 
 		return await base.TrySendAsync<T>(req);
 	}

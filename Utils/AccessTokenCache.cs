@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Root.DTOs;
+using Root.Errors;
 using System.Text.Json;
 using Root.Utils.Interfaces;
 
@@ -26,8 +27,8 @@ public class AccessTokenCache : IAccessTokenCache {
 		try {
 			json = File.ReadAllText(_filePath);
 		}
-		catch (Exception ex) {
-			throw new IOException("Failed to read cache file.", ex);
+		catch (IOException ex) {
+			throw new StreamException("Failed to read cache file.", ex);
 		}
 
 		// ? Parse string data into DTO
@@ -35,17 +36,21 @@ public class AccessTokenCache : IAccessTokenCache {
 		try {
 			data = JsonSerializer.Deserialize<CachedAccessToken>(json);
 		}
-		catch (Exception ex) {
-			throw new InvalidDataException("Cache file contains invalid JSON.", ex);
+		catch (JsonException ex) {
+			throw new ParseException("Cache file contains invalid JSON.", ex);
 		}
 
 		// ? Validate data
 		if (data == null)
-			throw new InvalidDataException("Cache file deserialized to null.");
+			throw new ParseException("Cache file deserialized to null.");
 		return data.AccessToken;
 	}
 
 	public void Create(string token) {
+		// ? Validate token
+		if (token.Length == 0)
+			throw new ConfigException("Access token cannot be empty");
+
 		// ? Mount access token
 		var data = new CachedAccessToken {
 			AccessToken = token
