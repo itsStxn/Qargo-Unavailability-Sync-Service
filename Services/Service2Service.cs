@@ -95,13 +95,13 @@ public class Service2Service : Base, IInteractService {
 						resourceId: resouceQargo.Id, 
 						actions: resourceMaster.Actions
 					);
-					Echo("Created => " + JsonUtil.ToPrettyJson(create));
+					Echo("Created => " + JsonUtil.Prettify(create));
 
 					var update = await _qargo.UpdateUnavailabilitiesAsync(
 						resourceId: resouceQargo.Id, 
 						actions: resourceMaster.Actions
 					);
-					Echo("Updated => " + JsonUtil.ToPrettyJson(update));
+					Echo("Updated => " + JsonUtil.Prettify(update));
 				}
 			}
 

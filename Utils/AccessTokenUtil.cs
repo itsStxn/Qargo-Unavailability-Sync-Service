@@ -100,7 +100,7 @@ public class AccessTokenUtil : JsonUtil, IAccessTokenUtil {
 		};
 
 		// ? Rewrite cache
-		var json = ToPrettyJson(data);
+		var json = Prettify(data);
 		File.WriteAllText(_filePath, json);
 	}
 }

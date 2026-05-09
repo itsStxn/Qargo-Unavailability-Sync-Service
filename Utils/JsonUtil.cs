@@ -40,7 +40,7 @@ public class JsonUtil : IJsonUtil {
 	/// <exception cref="ParseException">
 	/// Thrown when serialization fails due to invalid JSON formatting.
 	/// </exception>
-	public static string ToPrettyJson<T>(T data, bool print = false) {
+	public static string Prettify<T>(T data, bool print = false) {
 		// ? Json serialization
 		try {
 			var json = JsonSerializer.Serialize(data, JsonOptions);
