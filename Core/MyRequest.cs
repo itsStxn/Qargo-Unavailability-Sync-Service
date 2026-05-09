@@ -2,9 +2,9 @@ using Polly;
 using System;
 using Polly.Retry;
 using Root.Errors;
+using Root.Source;
 using Root.Core.Interfaces;
 using System.Net.Http.Json;
-using static Root.Constants.Constants;
 
 namespace Root.Core;
 
@@ -14,8 +14,8 @@ namespace Root.Core;
 /// </summary>
 public class MyRequest : Base, IMyRequest {
 	
-	/// <summary>The underlying <see cref="HttpClient"/> used to dispatch requests.</summary>
-	protected readonly HttpClient _cli;
+	/// <summary>The underlying <see cref="HttpSource"/> used to manage request behavior.</summary>
+	protected readonly HttpSource _http;
 
 	/// <summary>The Polly retry policy applied to all outgoing requests.</summary>
 	private readonly AsyncRetryPolicy _retryPolicy;
@@ -26,13 +26,13 @@ public class MyRequest : Base, IMyRequest {
 	/// Retries are triggered on <see cref="NetworkException"/>, with delays provided by <see cref="Timeout"/>
 	/// and retry logging handled by <see cref="OnRetryAsync"/>.
 	/// </summary>
-	/// <param name="cli">The <see cref="HttpClient"/> instance to use for all requests.</param>
-	public MyRequest(HttpClient cli) {
-		_cli = cli;
+	/// <param name="http">The <see cref="HttpSource"/> instance to use for all requests.</param>
+	public MyRequest(HttpSource http) {
+		_http = http;
 		_retryPolicy = Policy
 			.Handle<NetworkException>()
 			.WaitAndRetryAsync(
-				retryCount: MAX_ATTEMPTS,
+				retryCount: _http.Retry.MaxAttempts,
 				sleepDurationProvider: (attempt, ex, ctx) => 
 					Timeout(attempt, ex),
 				onRetryAsync: async (ex, delay, attempt, ctx) => 
@@ -42,17 +42,17 @@ public class MyRequest : Base, IMyRequest {
 
 
 	/// <summary>
-	/// Constructs the full absolute URI by combining the <see cref="HttpClient"/>'s base address
+	/// Constructs the full absolute URI by combining the <see cref="HttpSource.Cli"/>'s base address
 	/// with the relative URI from the given request message.
 	/// </summary>
 	/// <param name="req">The <see cref="HttpRequestMessage"/> containing the relative URI.</param>
 	/// <returns>The fully resolved URI as a trimmed string.</returns>
 	/// <exception cref="ConfigException">
-	/// Thrown if the base address on <see cref="_cli"/> or the URI on <paramref name="req"/> is null or empty.
+	/// Thrown if the base address on <see cref="_http.Cli"/> or the URI on <paramref name="req"/> is null or empty.
 	/// </exception>
 	protected string BuildFullUri(HttpRequestMessage req) {
 		// ? Validate HttpClient's base address
-		var baseUri = _cli.BaseAddress;
+		var baseUri = _http.Cli.BaseAddress;
 		if (baseUri == null || baseUri.ToString().Trim() == string.Empty)
 			throw new ConfigException(
 				Msg("The base address in HttpClient is empty or null"));
@@ -85,7 +85,8 @@ public class MyRequest : Base, IMyRequest {
 		}
 
 		// ? Manually calculate timeout duration
-		var delayMs = Math.Min(RETRY_TIMEOUT, 50 * Math.Pow(5, attempt - 1)); // ? Capped at 1s
+		// ? It is capped at _http.RequestProps.RetryTimeout, in milliseconds
+		var delayMs = Math.Min(_http.Retry.Timeout, 50 * Math.Pow(5, attempt - 1)); // ? Capped at 1s
 		return TimeSpan.FromMilliseconds(delayMs);
 	}
 
@@ -119,7 +120,7 @@ public class MyRequest : Base, IMyRequest {
 		// ? Get http response
 		try {
 			Echo($"Fetching result at {fullUri()}...");
-			res = await _cli.SendAsync(req);
+			res = await _http.Cli.SendAsync(req);
 			res.EnsureSuccessStatusCode();
 		}
 		catch (HttpRequestException ex) {

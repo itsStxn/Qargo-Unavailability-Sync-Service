@@ -4,7 +4,7 @@ using Root.DTOs;
 using Root.Errors;
 using System.Text.Json;
 using Root.Utils.Interfaces;
-using static Root.Constants.Constants;
+using static Root.Constants;
 
 namespace Root.Utils;
 
@@ -105,10 +105,9 @@ public class AccessTokenUtil : IAccessTokenUtil {
 		File.WriteAllText(_filePath, json);
 	}
 
-
 	/// <summary>
-	/// Serializes the provided object into formatted JSON
-	/// and writes it to the console output.
+	/// Serializes the provided object into formatted JSON,
+	/// and returns the serialized string.
 	/// </summary>
 	/// <typeparam name="T">
 	/// The type of object to serialize.
@@ -116,14 +115,21 @@ public class AccessTokenUtil : IAccessTokenUtil {
 	/// <param name="data">
 	/// The object instance to serialize and print.
 	/// </param>
+	/// <param name="print">
+	/// If true, prints the resulting JSON to the console output.
+	/// </param>
+	/// <returns>
+	/// A formatted JSON string representation of the provided object.
+	/// </returns>
 	/// <exception cref="ParseException">
 	/// Thrown when serialization fails due to invalid JSON formatting.
 	/// </exception>
-	public static void PrintPretty<T>(T data) {
+	public static string ToPrettyJson<T>(T data, bool print = false) {
 		// ? Json serialization
 		try {
 			var json = JsonSerializer.Serialize(data, JSON_OPTIONS);
-			Console.WriteLine(json);
+			if (print) Console.WriteLine(json);
+			return json;
 		}
 		catch (JsonException ex) {
 			throw new ParseException("JSON is badly formatted", ex);

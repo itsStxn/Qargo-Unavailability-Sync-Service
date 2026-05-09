@@ -16,9 +16,9 @@ class Program {
 			var qargo = new QargoService(ctx);
 			var master = new MasterService(ctx);
 
-			// ? Define interactor and sync unavailabilities
-			var inter = new InteractService(qargo, master);
-			await inter.SyncUnavailabilities();
+			// ? Sync qargo to master
+			var s2s = new Service2Service(qargo, master);
+			await s2s.SyncUnavailabilities();
 		}
 		catch (NetworkException ex) {
 			Log.Fatal(ex, "Network failure {StatusCode} after all retry attempts — {Message}",

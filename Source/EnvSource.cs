@@ -9,7 +9,7 @@ namespace Root.Source;
 /// Provides access to application environment variables loaded from a .env source.
 /// Inherits shared logging and message formatting utilities from <see cref="Base"/>.
 /// </summary>
-public class EnvSource : Base, IEnvSource {
+public class EnvSource : IEnvSource {
 
 	/// <summary>
 	/// Initializes a new instance of <see cref="EnvSource"/>
@@ -34,7 +34,6 @@ public class EnvSource : Base, IEnvSource {
 	/// </exception>
 	public string Load(string varName) {
 		return Environment.GetEnvironmentVariable(varName)
-			?? throw new ConfigException(
-				Msg($"\"{varName}\" environment variable is not set"));
+			?? throw new ConfigException($"\"{varName}\" environment variable is not set");
 	}
 }

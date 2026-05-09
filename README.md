@@ -25,26 +25,31 @@ Only entries that fall in the year **2025** are considered.
 ```
 Program.cs
 │
-└── Context  → shared HttpClient, Serilog logger, .env loader
+└── Context → shared HttpClient, Serilog logger, .env loader
+    ├── HttpSource → manages http request behavior
     ├── EnvSource → loads environment variables (DotNetEnv)
-    └── Cancellation Token (10s timeout)
+    └── Cancellation Token Source (settable timeout)
 │
-└── Tenant (abstract)
-    ├── MyRequest      → base HTTP request (Template Method)
-    └── MyAuthRequest  → OAuth2 client-credentials handling
+└── MyAuthRequest → HTTP request + OAuth2
+	└── MyRequest → base HTTP request (Template Method)
+		└── Base → Handles service-labeled logging
+│
+└── Tenant → uses MyAuthRequest instance to use tenant level web APIs
 │
 └── QargoService
     → reads resources & unavailabilities from target tenant
     → maps only entries with ExternalId
+    └── Tenant 
 │
 └── MasterService
     → reads resources & unavailabilities from master tenant
     → builds action map (create / update)
+    └── Tenant 
 │
-└── InteractService
-    → orchestrates sync
-       ├── QargoToMaster()
-       └── SyncUnavailabilities()
+└── Service2Service
+    → orchestrates sync between QargoService and MasterService
+    ├── QargoToMaster()
+    └── SyncUnavailabilities()
 ```
 
 ---
@@ -56,27 +61,29 @@ Program.cs
 | Template Method            | `MyRequest`, `MyAuthRequest` | Defines HTTP request flow while allowing customization (auth, retry logic) |
 | Dependency Injection       | All services                 | Constructor-based DI for testability and decoupling                        |
 | Retry / Resilience (Polly) | `MyRequest`                  | Exponential backoff retry for network failures                             |
-| Command-like Action Map    | `UActions`                   | Collects create/update operations for idempotent sync                      |
-| Facade                     | `InteractService`            | Single entry point hiding internal complexity                              |
+| Command-like Action Map    | `UActions`                  | Collects create/update operations for idempotent sync                      |
+| Facade                     | `Service2Service`           | Single entry point hiding internal complexity                              |
+| OOP Principles (encapsulation, abstraction, composition, polymorphism) | Entire codebase | Core design approach used throughout to structure responsibilities and reduce coupling |
 
 ---
 
 # 3. Assumptions
 
-* Only **unavailability data** is synchronized; resource entities themselves remain unchanged.
+* Only **unavailability data** is synchronized; resource entities themselves are out of concern.
 * Synchronisation direction is strictly **Master → Qargo**, where the master system is the source of truth and Qargo is the target.
 * The master environment is treated as **read-only** for this integration; only **GET operations** are performed against it.
 * Any **orphan unavailability entries** in Qargo (i.e. records with an `external_id` that does not exist in the master dataset) are intentionally preserved, as they may originate from other upstream systems.
-* The `external_id` field is assumed to uniquely identify an unavailability within the scope of a resource.
-* Cross-environment resource matching is based on **resource name**, not on internal system identifiers.
-* Only unavailability records with a time window in **calendar year 2025** are considered relevant for synchronization.
+* The `external_id` field is only used in Qargo, and it is assumed to uniquely identify an unavailability within the scope of a resource.
+* The `external_id` in Qargo is assumed to be equivalent to the **master record identifier**, enabling deterministic matching between systems.
+* Cross-environment resource matching is based on **Name** field because different environments have different Ids.
+* Different resources with the same name within an environment should be ignored because of ambiguity.
 * A missing `external_id` implies the record has **no external provenance** and is not part of the master-managed dataset.
+* Only unavailability records with a time window in **calendar year 2025** are considered relevant for synchronization.
+* When using cursor-based pagination, additional query parameters are avoided to ensure consistency with API expectations and prevent unstable paging behavior.
 * Pagination is implemented using a cursor-based mechanism and is considered complete when either:
 
   * the returned `cursor` is `null`, or
   * the returned `items` collection is empty.
-* When using cursor-based pagination, additional query parameters are avoided to ensure consistency with API expectations and prevent unstable paging behavior.
-* The `external_id` in Qargo is assumed to be equivalent to the **master record identifier**, enabling deterministic matching between systems.
 * Database and API operations are optimized for efficiency:
 
   * Only **update operations** are executed when a matching `external_id` exists *and* at least one relevant field differs
@@ -169,7 +176,7 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
   * `StreamException`
 * All HTTP calls use **Polly retry policy**
 
-  * max 5 retries, but can be chosen
+  * max 5 retries, but can be chosen in `Constants.cs`
   * exponential backoff
   * respects `Retry-After`
 * Logging via **Serilog**
@@ -179,7 +186,7 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 * Logs:
 
   * Daily rotation
-  * Retained for 3 days (`LOGS_TTL`, can be chosen)
+  * Retained for 3 days (`LOGS_TTL`, can be chosen in `Constants.cs`)
 * Non-zero exit code includes fatal log output for debugging
 
 ---
@@ -202,7 +209,7 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 * Extend DTOs under `ResourceListComponents/*`
 * Update `QargoService.MapResources()`
 
-### Change sync window
+### Change sync year window
 
 * Modify `Constants.UNAVAIL_YEAR`
 * Or expose CLI argument
@@ -217,13 +224,13 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
   ./out/Qargo\ Unavailability\ Sync\ Service
   ```
 
-* **Integrate with cron for scheduled execution** (e.g. every 15 minutes) by referencing the absolute path of the published binary in a crontab entry. Since cron runs in a minimal shell environment, avoid relying on relative paths or environment assumptions.
+* **Integrate with cron for scheduled execution** (e.g. every 10 minutes) by referencing the absolute path of the published binary in a crontab entry. Since cron runs in a minimal shell environment, avoid relying on relative paths or environment assumptions.
 
 * **Recommended cron pattern (robust execution):**
   Ensure the working directory is explicitly set before execution to avoid path-related issues (e.g., missing `.env`, logs, or cache directories):
 
   ```bash
-  */15 * * * * cd /absolute/path/to/publish/dir && ./QargoUnavailabilitySyncService >> /var/log/qargo-sync.log 2>&1
+  */10 * * * * cd /absolute/path/to/publish/dir && ./QargoUnavailabilitySyncService >> /var/log/qargo-sync.log 2>&1
   ```
 
 * **Key considerations:**

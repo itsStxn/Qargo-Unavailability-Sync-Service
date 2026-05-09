@@ -15,10 +15,9 @@ namespace Root.Services;
 public class QargoService : Tenant, IResourseMap {
 
 	/// <summary>
-	/// Maps resource IDs to their associated unavailabilities
-	/// that contain valid external identifiers.
+	/// Maps resource Names to their associated IDs and unavailabilities
 	/// </summary>
-	public readonly Dictionary<string, List<Unavailability>> ResourceMap;
+	public readonly Dictionary<string, (string Id, List<Unavailability> Unavails)> ResourceMap;
 
 
 	/// <summary>
@@ -27,13 +26,13 @@ public class QargoService : Tenant, IResourseMap {
 	/// </summary>
 	/// <param name="ctx">
 	/// The shared application context containing environment variables
-	/// and the reusable <see cref="HttpClient"/>.
+	/// and the reusable <see cref="HttpSource"/>.
 	/// </param>
 	public QargoService(Context ctx) : base(
-		name:     "Qargo",
-		cli:      ctx.Cli,
-		secret:   ctx.Env.Load("QARGO_SECRET"),
-		clientId: ctx.Env.Load("QARGO_CLIENT_ID")
+		ctx: 			 ctx,
+		name:        "Qargo",
+		secretEnv:	 "QARGO_SECRET",
+		clientIdEnv: "QARGO_CLIENT_ID"
 	) {
 		ResourceMap = [];
 	}
@@ -41,29 +40,48 @@ public class QargoService : Tenant, IResourseMap {
 
 	/// <summary>
 	/// Retrieves all Qargo tenant resources and maps their unavailabilities
-	/// that contain valid external identifiers into <see cref="ResourceMap"/>.
+	/// by normalized resource name.
 	/// </summary>
-	/// <returns>A <see cref="Task"/> representing the asynchronous mapping operation.</returns>
-	/// <exception cref="ConfigException">
-	/// Thrown when duplicate resource IDs are encountered during mapping.
+	/// <remarks>
+	/// Resource IDs differ between environments, therefore resources are matched
+	/// using their names. If multiple resources share the same name, the mapping
+	/// is considered ambiguous and synchronization for that resource is skipped
+	/// to prevent incorrect updates.
+	/// 
+	/// Only resources with unique names are added to <c>ResourceMap</c>.
+	/// </remarks>
+	/// <returns>
+	/// A <see cref="Task"/> representing the asynchronous mapping operation.
+	/// </returns>
+	/// <exception cref="AppException">
+	/// Thrown when an unexpected error occurs during resource or unavailability retrieval.
 	/// </exception>
 	public async Task MapResources() {
+		Echo("Mapping resources to unavailabilities...");
 
-		// ? Get every resource's unavailability
-		var resources = await GetResourcesAsync();
+		try {
+			// ? Get every resource's unavailability
+			var resources = await GetResourcesAsync();
+			DetermineAmbiguity(resources);
 
-		foreach (var r in resources) {
+			foreach (var r in resources) {
 
-			// ? Validate uniqueness
-			if (ResourceMap.ContainsKey(r.Id))
-				throw new ConfigException(Msg("resource IDs must be unique"));
+				// ? Resource already marked as ambiguous
+				if (_ambiguousResources.Contains(r.Name)) {
+					Warn($"Multiple target resources found for '{r.Name}'. Sync skipped due to ambiguous mapping.");
+					continue;
+				}
 
-			// ? Filter unavailabilities that have external id
-			var filtered = (await GetUnavailabilitiesAsync(r.Id))
-				.FindAll(u => !string.IsNullOrWhiteSpace(u.ExternalId));
-
-			if (filtered.Count > 0)
-				ResourceMap[r.Id] = filtered;
+				// ? Map resource names to unavailabilities
+				var unavails = await GetUnavailabilitiesAsync(r.Id);
+				ResourceMap.Add(r.Name, (r.Id, unavails));
+			}
+			
+			Echo("Successfully mapped resources to unavailabilities");
+		}
+		catch (Exception ex) {
+			Echo("Failed to map resources to unavailabilities");
+			throw AppException.Label<AppException>(ex, Msg(ex.Message));
 		}
 	}
 }

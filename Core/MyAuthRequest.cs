@@ -4,6 +4,7 @@ using Root.Utils;
 using System.Net;
 using System.Text;
 using Root.Errors;
+using Root.Source;
 using System.Net.Http.Json;
 using System.Net.Http.Headers;
 
@@ -35,8 +36,8 @@ public class MyAuthRequest : MyRequest {
 	/// <param name="name">The service name passed to <see cref="Base"/> for log message prefixing.</param>
 	/// <param name="clientId">The OAuth2 client ID.</param>
 	/// <param name="secret">The OAuth2 client secret.</param>
-	/// <param name="cli">The <see cref="HttpClient"/> instance to use for all requests.</param>
-	public MyAuthRequest(string name, string clientId, string secret, HttpClient cli) : base(cli) {
+	/// <param name="http">The <see cref="HttpSource"/> instance to use for all requests.</param>
+	public MyAuthRequest(string name, string clientId, string secret, HttpSource http) : base(http) {
 		_atu = new AccessTokenUtil(name);
 		_accessToken = _atu.ReadCache();
 		_clientId = clientId;

@@ -1,13 +1,14 @@
 using System;
 using Serilog;
-using static Root.Constants.Constants;
+using Root.Records;
+using static Root.Constants;
 
 namespace Root.Source;
 
 /// <summary>
 /// Represents the shared runtime context for the console application.
 /// Responsible for configuring logging, loading environment variables,
-/// managing application cancellation, and exposing a reusable <see cref="HttpClient"/> instance.
+/// managing application cancellation, and exposing a reusable <see cref="HttpSource"/> instance.
 /// </summary>
 public class Context : IDisposable {
 	
@@ -17,14 +18,19 @@ public class Context : IDisposable {
 	public readonly EnvSource Env;
 
 	/// <summary>
-	/// Shared HTTP client configured for all outbound API requests.
+	/// Provides HTTP-based access to remote APIs with timeout, retry, and cancellation support.
 	/// </summary>
-	public readonly HttpClient Cli;
+	public readonly HttpSource Http;
+
+	/// <summary>
+	/// Set of filter criteria used to query and filter unavailability records.
+	/// </summary>
+	public readonly UnavailabilityFilters UFilters;
 
 	/// <summary>
 	/// Cancellation token source used for graceful shutdown and request cancellation.
 	/// </summary>
-	private readonly CancellationTokenSource _ct;
+	private readonly CancellationTokenSource _cts;
 
 	/// <summary>
 	/// Tracks whether this instance has already been disposed.
@@ -58,19 +64,29 @@ public class Context : IDisposable {
 		// ? Load env variables
 		Env = new EnvSource();
 
-		// ? Define cancellation token
-		_ct = new CancellationTokenSource(TimeSpan.FromSeconds(CT_TIMEOUT));
+		// ? Define cancellation token source
+		_cts = new CancellationTokenSource(TimeSpan.FromMinutes(CT_TIMEOUT));
 
 		Console.CancelKeyPress += (_, e) => {
-			e.Cancel = true; // ? no immediate kill
-			_ct.Cancel();    // ? graceful shutdown
+			e.Cancel = true; 	// ? no immediate kill
+			_cts.Cancel();    // ? graceful shutdown
 		};
 
-		// ? Gather reusable request resource
-		Cli = new HttpClient() {
-			BaseAddress = new Uri(BASEURL),
-			Timeout = TimeSpan.FromSeconds(TIMEOUT)
-		};
+		// ? Define reusable request resource
+		Http = new HttpSource(
+			cantToken: _cts.Token,
+			retry: new HttpRetry {
+				Timeout = REQ_RETRY_TIMEOUT,
+				MaxAttempts = REQ_MAX_ATTEMPTS
+			},
+			cli: new HttpClient() {
+				BaseAddress = new Uri(BASEURL),
+				Timeout = TimeSpan.FromSeconds(REQ_TIMEOUT)
+			}
+		);
+
+		// ? Define unavailability filters
+		UFilters.Year = UNAVAIL_YEAR;
 	}
 
 
@@ -82,7 +98,6 @@ public class Context : IDisposable {
 		Dispose();
 	}
 
-
 	/// <summary>
 	/// Releases managed resources associated with this context,
 	/// including the cancellation token source and shared HTTP client.
@@ -92,12 +107,12 @@ public class Context : IDisposable {
 		if (_disposed) return;
 
 		// ? Cancel remaining requests
-		if (!_ct.IsCancellationRequested)
-			_ct.Cancel();
+		if (!_cts.IsCancellationRequested)
+			_cts.Cancel();
 
-		// ? Release both token and HTTP client
-		_ct.Dispose();
-		Cli.Dispose();
+		// ? Release both token and HTTP source
+		_cts.Dispose();
+		Http.Dispose();
 
 		Log.Information("Console app resources released");
 		Log.CloseAndFlush();

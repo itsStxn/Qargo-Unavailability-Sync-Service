@@ -9,6 +9,9 @@ namespace Root.Core;
 /// </summary>
 public class Base {	
 	
+	/// <summary>
+	/// Gets the logger instance used for logging operations within this class.
+	/// </summary>
 	private readonly ILogger Logger;
 
 	/// <summary>The name of the service, used as a prefix in log messages.</summary>
@@ -34,6 +37,15 @@ public class Base {
 
 
 	/// <summary>
+	/// Normalizes the input text by trimming whitespace and converting to lowercase.
+	/// </summary>
+	/// <param name="text">The text to normalize.</param>
+	/// <returns>A normalized string with leading/trailing whitespace removed and converted to lowercase.</returns>
+	protected string Normalize(string text) {
+		return text.Trim().ToLowerInvariant();
+	}
+
+	/// <summary>
 	/// Formats a message with the service name prefix, unless the message is already formatted.
 	/// </summary>
 	/// <param name="text">The raw message text to format.</param>
@@ -43,7 +55,9 @@ public class Base {
 	/// </returns>
 	public string Msg(string text) {
 		string trimmed = text.Trim();
-		if (trimmed.StartsWith("(service: ")) return trimmed;
+		var ignoreCase = StringComparison.OrdinalIgnoreCase;
+
+		if (trimmed.StartsWith("(service: ", ignoreCase)) return trimmed;
 		return $"(service: {_name}) >> {trimmed}";
 	}
 

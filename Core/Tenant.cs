@@ -1,9 +1,10 @@
 using System;
 using Root.DTOs;
 using Root.Errors;
+using Root.Source;
+using Root.Records;
 using Root.Core.Interfaces;
 using System.Net.Http.Json;
-using static Root.Constants.Constants;
 using Root.DTOs.ResourceListComponents;
 using Root.DTOs.UnavailabilityListComponents;
 
@@ -19,19 +20,55 @@ public class Tenant : Base, ITenant {
 	/// <summary>The authenticated HTTP client used for all API calls made by this tenant.</summary>
 	private readonly MyAuthRequest _auth;
 
+	/// <summary>Application context providing shared services.</summary>
+	private readonly Context _ctx;
+
+	/// <summary>
+	/// A set of resource identifiers that are ambiguous or cannot be uniquely resolved within the tenant context.
+	/// </summary>
+	protected readonly HashSet<string> _ambiguousResources;
+
 
 	/// <summary>
 	/// Initializes a new instance of <see cref="Tenant"/> with the given credentials and HTTP client.
 	/// </summary>
 	/// <param name="name">The tenant's service name, used for log message prefixing.</param>
-	/// <param name="clientId">The OAuth2 client ID for authentication.</param>
-	/// <param name="secret">The OAuth2 client secret for authentication.</param>
-	/// <param name="cli">The <see cref="HttpClient"/> instance to use for all requests.</param>
-	public Tenant(string name, string clientId, string secret, HttpClient cli) {
-		_auth = new MyAuthRequest(name, clientId, secret, cli);
+	/// <param name="clientIdEnv">Name of the following envaronment variable: OAuth2 client ID for authentication.</param>
+	/// <param name="secretEnv">Name of the following envaronment variable: OAuth2 client secret for authentication.</param>
+	/// <param name="ctx">Application context providing shared services such as HTTP client and environment variable access.</param>
+	public Tenant(string name, string clientIdEnv, string secretEnv, Context ctx) {
 		_name = name;
+		_ctx = ctx;
+		_ambiguousResources = [];
+		_auth = new MyAuthRequest(
+			name: 	 name, 
+			http: 	 ctx.Http,
+			secret: 	 ctx.Env.Load(secretEnv), 
+			clientId: ctx.Env.Load(clientIdEnv) 
+		);
 	}
 
+
+	/// <summary>
+	/// Determines and tracks ambiguous resources by identifying duplicate normalized names within the provided resource collection.
+	/// </summary>
+	/// <param name="resources">The list of resources to analyze for name ambiguities.</param>
+	/// <remarks>
+	/// This method normalizes each resource name and groups resources by their normalized names.
+	/// Any group containing more than one resource is considered ambiguous and is added to the 
+	/// <see cref="_ambiguousResources"/> collection. A warning is logged for each detected duplicate.
+	/// </remarks>
+	protected void DetermineAmbiguity(List<Resource> resources) {
+		var grouped = resources
+			.GroupBy(r => Normalize(r.Name));
+
+		foreach (var group in grouped) {
+			if (group.Count() > 1) {
+				_ambiguousResources.Add(group.Key);
+				Warn($"Duplicate resource name detected: {group.Key}");
+			}
+		}
+	} 
 
 	/// <summary>
 	/// Retrieves all resources for this tenant by paginating through the API until no further cursor is returned.
@@ -40,6 +77,7 @@ public class Tenant : Base, ITenant {
 	/// <exception cref="AppException">Thrown if any error occurs during fetching, wrapping the original exception.</exception>
 	public async Task<List<Resource>> GetResourcesAsync() {
 		Echo("Getting resources...");
+
 		var resources = new List<Resource>();
 		string? next = null;
 		ResourceList data;
@@ -63,24 +101,25 @@ public class Tenant : Base, ITenant {
 			Echo("Successfully got resources");
 			return resources;
 		}
-		catch (Exception ex) {
+		catch {
 			Error("Failed to get resources");
-			throw AppException.Label<AppException>(ex, Msg(ex.Message));
+			throw;
 		}
 	}
 
 	/// <summary>
 	/// Retrieves all unavailabilities for a given resource by paginating through the API,
-	/// filtered to only include entries where both <c>StartTime</c> and <c>EndTime</c> fall within <c>UNAVAIL_YEAR</c>.
+	/// filtered to only include entries where both <c>StartTime</c> and <c>EndTime</c> fall within <c>_ctx.UFilters.Year</c>.
 	/// </summary>
 	/// <param name="resourceId">The ID of the resource to fetch unavailabilities for.</param>
 	/// <returns>A <see cref="Task"/> resolving to a flat <see cref="List{T}"/> of matching <see cref="Unavailability"/> items.</returns>
 	/// <exception cref="AppException">Thrown if any error occurs during fetching, wrapping the original exception.</exception>
 	public async Task<List<Unavailability>> GetUnavailabilitiesAsync(string resourceId) {
 		Echo($"Getting unavailabilities for resource: {resourceId}...");
+
 		var unavails = new List<Unavailability>();
-		string? next = null;
 		UnavailabilityList data;
+		string? next = null;
 
 		try {
 			do {
@@ -93,10 +132,19 @@ public class Tenant : Base, ITenant {
 					new HttpRequestMessage(HttpMethod.Get, endpoint));
 
 				// ? Filter by year and store
-				unavails.AddRange(data.Items.Where(u =>
-					u.StartTime.Contains(UNAVAIL_YEAR) &&
-					(u.EndTime ?? string.Empty).Contains(UNAVAIL_YEAR)
-				));
+				int year = int.Parse(_ctx.UFilters.Year);
+
+				unavails.AddRange(
+					data.Items.Where(u => {
+						var start = DateTimeOffset.Parse(u.StartTime);
+						var end = string.IsNullOrEmpty(u.EndTime)
+							? (DateTimeOffset?)null
+							: DateTimeOffset.Parse(u.EndTime);
+
+						return start.Year == year &&
+							(end == null || end.Value.Year == year);
+					})
+				);
 
 				// ? Run until no cursor is found
 				next = data.NextCursor;
@@ -106,45 +154,78 @@ public class Tenant : Base, ITenant {
 			Echo($"Successfully got unavailabilities for resource: {resourceId}");
 			return unavails;
 		}
-		catch (Exception ex) {
+		catch {
 			Error($"Failed to get unavailabilities for resource: {resourceId}");
-			throw AppException.Label<AppException>(ex, Msg(ex.Message));
+			throw;
 		}
 	}
 
 	/// <summary>
-	/// Creates all unavailabilities in the provided <see cref="UActions.ToCreate"/> map for a given resource.
-	/// Each entry is dispatched individually via <see cref="CreateUnavailabilityAsync"/>.
+	/// Creates all unavailabilities in the provided <see cref="UActions.ToCreate"/> map
+	/// for the specified resource.
 	/// </summary>
-	/// <param name="resourceId">The ID of the resource to create unavailabilities for.</param>
+	/// <remarks>
+	/// Each creation request is executed independently to ensure that failures
+	/// do not prevent remaining unavailabilities from being processed.
+	///
+	/// Individual failures are logged while synchronization continues.
+	/// </remarks>
+	/// <param name="resourceId">
+	/// The ID of the resource whose unavailabilities should be created.
+	/// </param>
 	/// <param name="actions">
-	/// The action map containing unavailabilities to create. Logs a warning and exits early if <see cref="UActions.ToCreate"/> is empty.
+	/// The action container holding unavailabilities to create.
 	/// </param>
 	/// <returns>
-	/// A <see cref="Task"/> resolving to the <see cref="HttpResponseMessage"/> from the last successful creation request.
+	/// A <see cref="BatchActionResult"/> containing the total number of creation
+	/// attempts along with success and failure counts.
 	/// </returns>
-	/// <exception cref="ParseException">Thrown if no requests were made and the response is <c>null</c>.</exception>
-	/// <exception cref="AppException">Thrown if any error occurs during creation, wrapping the original exception.</exception>
-	public async Task<HttpResponseMessage> CreateUnavailabilitiesAsync(string resourceId, UActions actions) {
+	public async Task<BatchActionResult> CreateUnavailabilitiesAsync(
+		string resourceId,
+		UActions actions
+	) {
 		// ? Early exit
-		if (actions.ToCreate.Count == 0)
-			Warn("Creation map is empty, early exit...");
+		if (actions.ToCreate.Count == 0) {
+			Warn($"No unavailabilities to create for resource: {resourceId}");
+
+			return new BatchActionResult {
+				ResourceId = resourceId,
+				Succeeded = 0,
+				Failed = [],
+				Total = 0
+			};
+		}
 
 		Echo($"Creating unavailabilities for resource: {resourceId}...");
-		HttpResponseMessage? lastRes = null;
 
-		try {
-			foreach (var unavail in actions.ToCreate.Values) {
-				lastRes = await CreateUnavailabilityAsync(resourceId, unavail);
+		int success = 0;
+		var failed = new List<string>();
+
+		foreach (var (unavailId, unavail) in actions.ToCreate) {
+			try {
+				await CreateUnavailabilityAsync(resourceId, unavail);
+				success++;
+
+				Echo($"Successfully created unavailability: {unavailId}");
 			}
+			catch (Exception ex) {
+				failed.Add(unavailId);
 
-			Echo($"Successfully created unavailabilities for resource: {resourceId}");
-			return lastRes ?? throw new ParseException(Msg("HTTP response is null"));
+				Error(
+					$"Failed to create unavailability '{unavailId}' " +
+					$"for resource '{resourceId}': {ex.Message}"
+				);
+			}
 		}
-		catch (Exception ex) {
-			Error($"Failed to create unavailabilities for resource: {resourceId}");
-			throw AppException.Label<AppException>(ex, Msg(ex.Message));
-		}
+
+		Echo($"Finished creating unavailabilities for resource: {resourceId}");
+
+		return new BatchActionResult {
+			ResourceId = resourceId,
+			Total = actions.ToCreate.Count,
+			Succeeded = success,
+			Failed = failed
+		};
 	}
 
 	/// <summary>
@@ -164,38 +245,71 @@ public class Tenant : Base, ITenant {
 	}
 
 	/// <summary>
-	/// Updates all unavailabilities in the provided <see cref="UActions.ToUpdate"/> map for a given resource.
-	/// Each entry is dispatched individually via <see cref="UpdateUnavailabilityAsync"/>.
+	/// Updates all unavailabilities in the provided <see cref="UActions.ToUpdate"/> map
+	/// for the specified resource.
 	/// </summary>
-	/// <param name="resourceId">The ID of the resource to update unavailabilities for.</param>
+	/// <remarks>
+	/// Each update request is executed independently to ensure that failures
+	/// do not prevent remaining unavailabilities from being processed.
+	///
+	/// Individual failures are logged while synchronization continues.
+	/// </remarks>
+	/// <param name="resourceId">
+	/// The ID of the resource whose unavailabilities should be updated.
+	/// </param>
 	/// <param name="actions">
-	/// The action map containing unavailabilities to update. Logs a warning and exits early if <see cref="UActions.ToUpdate"/> is empty.
+	/// The action container holding unavailabilities to update.
 	/// </param>
 	/// <returns>
-	/// A <see cref="Task"/> resolving to the <see cref="HttpResponseMessage"/> from the last successful update request.
+	/// A <see cref="BatchActionResult"/> containing the total number of update
+	/// attempts along with success and failure counts.
 	/// </returns>
-	/// <exception cref="ParseException">Thrown if no requests were made and the response is <c>null</c>.</exception>
-	/// <exception cref="AppException">Thrown if any error occurs during updating, wrapping the original exception.</exception>
-	public async Task<HttpResponseMessage> UpdateUnavailabilitiesAsync(string resourceId, UActions actions) {
+	public async Task<BatchActionResult> UpdateUnavailabilitiesAsync(
+		string resourceId,
+		UActions actions
+	) {
 		// ? Early exit
-		if (actions.ToUpdate.Count == 0)
-			Warn("Update map is empty, early exit...");
+		if (actions.ToUpdate.Count == 0) {
+			Warn($"No unavailabilities to update for resource: {resourceId}");
+
+			return new BatchActionResult {
+				ResourceId = resourceId,
+				Succeeded = 0,
+				Failed = [],
+				Total = 0
+			};
+		}
 
 		Echo($"Updating unavailabilities for resource: {resourceId}...");
-		HttpResponseMessage? lastRes = null;
 
-		try {
-			foreach (var (unavailId, newUnavail) in actions.ToUpdate) {
-				lastRes = await UpdateUnavailabilityAsync(resourceId, unavailId, newUnavail);
+		int success = 0;
+		var failed = new List<string>();
+
+		foreach (var (unavailId, newUnavail) in actions.ToUpdate) {
+			try {
+				await UpdateUnavailabilityAsync(resourceId, unavailId, newUnavail);
+				success++;
+
+				Echo($"Successfully updated unavailability: {unavailId}");
 			}
+			catch (Exception ex) {
+				failed.Add(unavailId);
 
-			Echo($"Successfully updated unavailabilities for resource: {resourceId}");
-			return lastRes ?? throw new ParseException(Msg("HTTP response is null"));
+				Error(
+					$"Failed to update unavailability '{unavailId}' " +
+					$"for resource '{resourceId}': {ex.Message}"
+				);
+			}
 		}
-		catch (Exception ex) {
-			Error($"Failed to update unavailabilities for resource: {resourceId}");
-			throw AppException.Label<AppException>(ex, Msg(ex.Message));
-		}
+
+		Echo($"Finished updating unavailabilities for resource: {resourceId}");
+
+		return new BatchActionResult {
+			ResourceId = resourceId,
+			Total = actions.ToUpdate.Count,
+			Succeeded = success,
+			Failed = failed
+		};
 	}
 
 	/// <summary>
