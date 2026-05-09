@@ -216,35 +216,70 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 
 ### Scheduling
 
-* **Publish the service** using the Release build step described above (`dotnet publish`). This produces a self-contained executable (or framework-dependent binary, depending on configuration) in the output directory.
-
-* **Execute the published binary manually** to validate it works outside of the build context. The service can be run directly from the publish folder by invoking its absolute or relative path, e.g.:
+* **Publish the service** using a Release build:
 
   ```bash
-  ./out/Qargo\ Unavailability\ Sync\ Service
+  dotnet publish -c Release -r linux-x64 --self-contained false -o "./publish"
   ```
 
-* **Integrate with cron for scheduled execution** (e.g. every 10 minutes) by referencing the absolute path of the published binary in a crontab entry. Since cron runs in a minimal shell environment, avoid relying on relative paths or environment assumptions.
+  This generates a deployment-ready output inside the `publish/` directory, including the application DLL and all required runtime configuration files.
 
-* **Recommended cron pattern (robust execution):**
-  Ensure the working directory is explicitly set before execution to avoid path-related issues (e.g., missing `.env`, logs, or cache directories):
+---
+
+* **Run the published service manually** to validate the deployment output before automating execution:
 
   ```bash
-  */10 * * * * cd /absolute/path/to/publish/dir && ./QargoUnavailabilitySyncService >> /var/log/qargo-sync.log 2>&1
+  cd publish
+  dotnet QargoUnavailabilitySyncService.dll
   ```
 
-* **Key considerations:**
+  Running the published version directly helps detect deployment-specific issues early (e.g., missing `.env`, incorrect paths, stale builds, or runtime configuration mismatches).
 
-  * Always use **absolute paths** in cron jobs.
-  * Explicitly `cd` into the application directory so relative file dependencies (e.g., `.env`, `Logs/`, `Cache/`) resolve correctly.
-  * Redirect `stdout` and `stderr` to a log file for observability and debugging.
-  * Ensure the binary has execute permissions (`chmod +x` if needed).
-  * If environment variables are required, either:
+---
 
-    * load them via `.env` inside the application (as implemented), or
-    * explicitly source them in the cron command.
+* **Automate execution using cron** by invoking the published DLL through `dotnet`.
 
-This approach ensures deterministic execution, avoids cron’s restricted execution context pitfalls, and keeps logging and configuration consistent with local runs.
+  Since cron runs in a minimal shell environment, always:
+
+  * use absolute paths,
+  * explicitly set the working directory,
+  * and avoid relying on shell-specific state or environment assumptions.
+
+---
+
+* **Recommended setup**
+
+  Create a dedicated `cron.sh` script:
+
+  ```bash
+  #!/bin/bash
+
+  cd "/absolute/path/to/project" || exit 1
+
+  # Prevent overlapping runs by locking and skipping concurrent executions
+  flock -n /tmp/qargo-sync.lock \
+  /usr/bin/dotnet "/absolute/path/to/project/publish/QargoUnavailabilitySyncService.dll"
+  ```
+
+  Then register it in `crontab`:
+
+  ```bash
+  */10 * * * * /bin/bash "/absolute/path/to/project/cron.sh" >> "/absolute/path/to/project/Logs/myapp.log" 2>&1
+  ```
+
+---
+
+* **Key considerations**
+
+  * Always use **absolute paths** in scheduled jobs.
+  * Run the **published output**, not files from `bin/Release/`, to avoid stale or inconsistent builds.
+  * Explicitly `cd` into the project directory so relative dependencies (e.g., `.env`, `Logs/`, `Cache/`) resolve correctly.
+  * Use `flock -n` to prevent overlapping executions; if a previous sync is still running, the new scheduled run is skipped.
+  * Redirect both `stdout` and `stderr` to log files for observability and debugging.
+  * Ensure the required runtime is installed and accessible (`/usr/bin/dotnet`).
+  * If configuration relies on environment variables or `.env` files, ensure they are available from the execution context used by cron.
+
+This setup provides deterministic execution, avoids overlapping synchronization tasks, and ensures the scheduled environment behaves consistently with manual runs.
 
 ---
 
