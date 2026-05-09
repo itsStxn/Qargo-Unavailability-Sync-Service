@@ -120,7 +120,7 @@ public class MyRequest : Base, IMyRequest {
 		// ? Get http response
 		try {
 			Echo($"Fetching result at {fullUri()}...");
-			res = await _http.Cli.SendAsync(req);
+			res = await _http.Cli.SendAsync(req, _http.CancToken);
 			res.EnsureSuccessStatusCode();
 		}
 		catch (HttpRequestException ex) {
