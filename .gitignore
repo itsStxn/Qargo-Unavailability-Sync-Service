@@ -5,6 +5,7 @@ Cache/
 Logs/
 obj/
 bin/
+cron.sh
 
 ############################
 # Operating System files
