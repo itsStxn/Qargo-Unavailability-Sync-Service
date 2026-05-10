@@ -107,9 +107,12 @@ public class MyAuthRequest : MyRequest {
 	/// to intentionally trigger the retry policy.
 	/// </exception>
 	protected override async Task<T> TrySendAsync<T>(HttpRequestMessage req) where T : default {
-		// ? Skip token injection if request is already using Basic auth
-		if (req.Headers.Authorization?.Scheme != "Basic") {
-			// ? Force pollying
+		
+		// ? Try to inject access token
+		// ? into requests with no auth headers
+		if (req.Headers.Authorization == null) {
+
+			// ? Force pollying if needed
 			if (_accessToken == string.Empty) {
 				throw new NetworkException(
 					inner: null,

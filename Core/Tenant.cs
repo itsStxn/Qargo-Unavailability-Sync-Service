@@ -83,7 +83,7 @@ public class Tenant : Base, ITenant {
 
 		try {
 			do {
-				// ? Prepare uri
+				// ? Prepare endpoint
 				var endpoint = "resources/resource";
 				endpoint += next == null ? string.Empty : $"?cursor={next}";
 
@@ -122,7 +122,7 @@ public class Tenant : Base, ITenant {
 
 		try {
 			do {
-				// ? Prepare uri
+				// ? Prepare endpoint
 				var endpoint = $"resources/resource/{resourceId}/unavailability";
 				endpoint += next == null ? string.Empty : $"?cursor={next}";
 
