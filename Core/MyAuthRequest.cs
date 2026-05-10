@@ -90,9 +90,10 @@ public class MyAuthRequest : MyRequest {
 	}
 
 	/// <summary>
-	/// Extends the base send logic to inject a Bearer token into the request's
-	/// <c>Authorization</c> header before dispatch.
-	/// Requests already using Basic auth (e.g. token renewal) are passed through unmodified.
+	/// Extends the default send behavior by adding a Bearer token to the request's
+	/// <c>Authorization</c> header before sending.
+	/// Injection only occurs when no authentication header is already present.
+	/// For example, Basic auth requests (such as token refresh calls) are forwarded unchanged.
 	/// </summary>
 	/// <remarks>
 	/// If the access token is empty and the request is not a Basic auth request, a
