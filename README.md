@@ -257,26 +257,53 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 
   ```bash
   #!/bin/bash
-
-  PROJECT_DIR="/absolute/path/to/project"
-
-  cd "$PROJECT_DIR" || {
-    echo "Project directory not found: $PROJECT_DIR"
-    exit 1
+  
+  # Run the console app
+  # Note: It runs by locking and skipping concurrent executions
+  
+  ########################################
+  # SETTINGS / SAFETY
+  ########################################
+  
+  set -euo pipefail
+  
+  
+  ########################################
+  # ERROR HANDLING
+  ########################################
+  
+  on_error() {
+  	echo "❌ Project failed to run"
   }
-
+  
+  trap on_error ERR
+  
+  
+  ########################################
+  # VARIABLES
+  ########################################
+  
+  PROJECT_DIR="/absolute/path/to/project"
+  
+  
+  ########################################
+  # MAIN LOGIC
+  ########################################
+  
+  cd "$PROJECT_DIR"
+  
   echo "Starting project..."
   
   flock -n /tmp/qargo-sync.lock \
-  dotnet "/absolute/path/to/project/publish/QargoUnavailabilitySyncService.dll"
+  dotnet "$PROJECT_DIR/publish/QargoUnavailabilitySyncService.dll"
   
-  echo "✅ Project has run successfully"
+  echo "✅ Project run successfully"
   ```
 
   Then register it in `crontab`:
 
   ```bash
-  */10 * * * * /bin/bash "/absolute/path/to/project/start.sh" >> "/absolute/path/to/project/Logs/app-cron.log" 2>&1
+  */10 * * * * /bin/bash "/absolute/path/to/project/start.sh" >> "/absolute/path/to/project/logs/app-cron.log" 2>&1
   ```
 
 ---
