@@ -13,12 +13,12 @@ namespace Root.Core;
 /// <summary>
 /// Represents a tenant context and provides operations for managing resources and their unavailabilities
 /// via the authenticated API. Inherits logging utilities from <see cref="Base"/> and delegates
-/// all HTTP communication to <see cref="MyAuthRequest"/>.
+/// all HTTP communication to <see cref="HttpRequestAuth"/>.
 /// </summary>
 public class Tenant : Base, ITenant {
 
 	/// <summary>The authenticated HTTP client used for all API calls made by this tenant.</summary>
-	private readonly MyAuthRequest _auth;
+	private readonly HttpRequestAuth _auth;
 
 	/// <summary>Application context providing shared services.</summary>
 	private readonly Context _ctx;
@@ -39,7 +39,7 @@ public class Tenant : Base, ITenant {
 	public Tenant(string name, string clientIdEnv, string secretEnv, Context ctx) : base(name) {
 		_ctx = ctx;
 		_ambiguousResources = [];
-		_auth = new MyAuthRequest(
+		_auth = new HttpRequestAuth(
 			name: 	 name, 
 			http: 	 ctx.Http,
 			secret: 	 ctx.Env.Load(secretEnv), 

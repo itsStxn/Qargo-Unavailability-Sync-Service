@@ -11,11 +11,11 @@ using System.Net.Http.Headers;
 namespace Root.Core;
 
 /// <summary>
-/// Extends <see cref="MyRequest"/> with OAuth2 client credentials authentication.
+/// Extends <see cref="HttpRequest"/> with OAuth2 client credentials authentication.
 /// Automatically injects Bearer tokens into outgoing requests, and renews the access token
 /// on <c>401 Unauthorized</c> responses via the inherited retry policy.
 /// </summary>
-public class MyAuthRequest : MyRequest {
+public class HttpRequestAuth : HttpRequest {
 
 	/// <summary>The OAuth2 client ID used to obtain access tokens.</summary>
 	private readonly string _clientId;
@@ -31,13 +31,13 @@ public class MyAuthRequest : MyRequest {
 
 
 	/// <summary>
-	/// Initializes a new instance of <see cref="MyAuthRequest"/>, restoring the access token from cache if available.
+	/// Initializes a new instance of <see cref="HttpRequestAuth"/>, restoring the access token from cache if available.
 	/// </summary>
 	/// <param name="name">The service name passed to <see cref="Base"/> for log message prefixing.</param>
 	/// <param name="clientId">The OAuth2 client ID.</param>
 	/// <param name="secret">The OAuth2 client secret.</param>
 	/// <param name="http">The <see cref="HttpSource"/> instance to use for all requests.</param>
-	public MyAuthRequest(string name, string clientId, string secret, HttpSource http) : base(http, name) {
+	public HttpRequestAuth(string name, string clientId, string secret, HttpSource http) : base(http, name) {
 		_atu = new AccessTokenUtil(name);
 		_accessToken = _atu.ReadCache();
 		_clientId = clientId;
@@ -73,7 +73,7 @@ public class MyAuthRequest : MyRequest {
 
 	/// <summary>
 	/// Extends the base retry hook to trigger token renewal on <c>401 Unauthorized</c> responses.
-	/// All other cases are delegated to <see cref="MyRequest.OnRetryAsync"/>.
+	/// All other cases are delegated to <see cref="HttpRequest.OnRetryAsync"/>.
 	/// </summary>
 	/// <param name="ex">The exception that triggered the retry.</param>
 	/// <param name="delay">The delay duration that will be observed before the next attempt.</param>

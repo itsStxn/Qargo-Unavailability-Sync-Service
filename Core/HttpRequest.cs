@@ -10,9 +10,9 @@ namespace Root.Core;
 
 /// <summary>
 /// Provides a resilient HTTP client wrapper with automatic retry logic, structured error handling,
-/// and JSON deserialization. Implements <see cref="IMyRequest"/> and inherits logging utilities from <see cref="Base"/>.
+/// and JSON deserialization. Implements <see cref="IHttpRequest"/> and inherits logging utilities from <see cref="Base"/>.
 /// </summary>
-public class MyRequest : Base, IMyRequest {
+public class HttpRequest : Base, IHttpRequest {
 	
 	/// <summary>The underlying <see cref="HttpSource"/> used to manage request behavior.</summary>
 	protected readonly HttpSource _http;
@@ -22,24 +22,24 @@ public class MyRequest : Base, IMyRequest {
 
 
 	/// <summary>
-	/// Initializes a new instance of <see cref="MyRequest"/> and configures the retry policy.
+	/// Initializes a new instance of <see cref="HttpRequest"/> and configures the retry policy.
 	/// Retries are triggered on <see cref="NetworkException"/>, with delays provided by <see cref="Timeout"/>
 	/// and retry logging handled by <see cref="OnRetryAsync"/>.
 	/// </summary>
 	/// <param name="http">The <see cref="HttpSource"/> instance to use for all requests.</param>
-	public MyRequest(HttpSource http) : base() {
+	public HttpRequest(HttpSource http) : base() {
 		_http = http;
 		_retryPolicy = BuildRetryPolicy(http);
 	}
 
 	/// <summary>
-	/// Initializes a new instance of <see cref="MyRequest"/> and configures the retry policy.
+	/// Initializes a new instance of <see cref="HttpRequest"/> and configures the retry policy.
 	/// Retries are triggered on <see cref="NetworkException"/>, with delays provided by <see cref="Timeout"/>
 	/// and retry logging handled by <see cref="OnRetryAsync"/>.
 	/// </summary>
 	/// <param name="http">The <see cref="HttpSource"/> instance to use for all requests.</param>
 	/// <param name="name">The service name passed to <see cref="Base"/> for log message prefixing.</param>
-	protected MyRequest(HttpSource http, string name) : base(name) {
+	protected HttpRequest(HttpSource http, string name) : base(name) {
 		_http = http;
 		_retryPolicy = BuildRetryPolicy(http);
 	}

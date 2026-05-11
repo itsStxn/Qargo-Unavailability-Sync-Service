@@ -8,15 +8,14 @@ Only entries that fall in the year **2025** are considered.
 # Table of Contents
 
 1. Architecture Overview
-2. Key Design Patterns
-3. Assumptions
-4. Prerequisites
-5. Configuration (.env)
-6. Building & Running
-7. Error Handling & Logging
-8. Security Considerations
-9.  Extending the Tool
-11. License
+2. Assumptions
+3. Prerequisites
+4. Configuration (.env)
+5. Building & Running
+6. Error Handling & Logging
+7. Security Considerations
+8.  Extending the Tool
+9.  License
 
 ---
 
@@ -30,11 +29,11 @@ Program.cs
     ├── EnvSource → loads environment variables (DotNetEnv)
     └── Cancellation Token Source (settable timeout)
 │
-└── MyAuthRequest → HTTP request + OAuth2
-	└── MyRequest → base HTTP request (Template Method)
+└── HttpRequestAuth → HTTP request + OAuth2
+	└── HttpRequest → base HTTP request (Template Method)
 		└── Base → Handles service-labeled logging
 │
-└── Tenant → uses MyAuthRequest instance to use tenant level web APIs
+└── Tenant → uses HttpRequestAuth instance to use tenant level web APIs
 │
 └── QargoService
     → reads resources & unavailabilities from target tenant
@@ -54,20 +53,7 @@ Program.cs
 
 ---
 
-# 2. Key Design Patterns
-
-| Pattern                    | Where it appears             | Purpose                                                                    |
-| -------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
-| Template Method            | `MyRequest`, `MyAuthRequest` | Defines HTTP request flow while allowing customization (auth, retry logic) |
-| Dependency Injection       | All services                 | Constructor-based DI for testability and decoupling                        |
-| Retry / Resilience (Polly) | `MyRequest`                  | Exponential backoff retry for network failures                             |
-| Command-like Action Map    | `UActions`                  | Collects create/update operations for idempotent sync                      |
-| Facade                     | `Service2Service`           | Single entry point hiding internal complexity                              |
-| OOP Principles (encapsulation, abstraction, composition, polymorphism) | Entire codebase | Core design approach used throughout to structure responsibilities and reduce coupling |
-
----
-
-# 3. Assumptions
+# 2. Assumptions
 
 * Only **unavailability data** is synchronized; resource entities themselves are out of concern.
 * Synchronisation direction is strictly **Master → Qargo**, where the master system is the source of truth and Qargo is the target.
@@ -91,7 +77,7 @@ Program.cs
 
 ---
 
-# 4. Prerequisites
+# 3. Prerequisites
 
 | Requirement           | Version / Notes                     |
 | --------------------- | ----------------------------------- |
@@ -104,7 +90,7 @@ Program.cs
 
 ---
 
-# 5. Configuration (.env)
+# 4. Configuration (.env)
 
 Create a `.env` file in the repository root (ignored by git):
 
@@ -122,7 +108,7 @@ Only these four variables are required and loaded at startup via `EnvSource`.
 
 ---
 
-# 6. Building & Running
+# 5. Building & Running
 
 ## Restore dependencies
 
@@ -165,7 +151,7 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 
 ---
 
-# 7. Error Handling & Logging
+# 6. Error Handling & Logging
 
 * Custom exceptions:
 
@@ -191,7 +177,7 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 
 ---
 
-# 8. Security Considerations
+# 7. Security Considerations
 
 * OAuth2 client-credentials flow (no hardcoded secrets)
 * Secrets stored only in `.env`
@@ -202,7 +188,7 @@ dotnet publish -c Release -r linux-x64 --self-contained false -o out
 
 ---
 
-# 9. Extending the Tool
+# 8. Extending the Tool
 
 ### Add new resource types
 
@@ -322,7 +308,7 @@ This setup provides deterministic execution, avoids overlapping synchronization 
 
 ---
 
-# 10. License
+# 9. License
 
 The starter code is provided by **Qargo** for interview purposes.
 You may modify, extend, or redistribute it for the assignment.
